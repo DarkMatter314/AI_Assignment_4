@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
+#include <unordered_map>
 
 
 // Format checker just assumes you have Alarm.bif and Solved_Alarm.bif (your file) in current directory
@@ -19,6 +20,7 @@ private:
 	vector<string> Parents; // Parents of a particular node- note these are names of parents
 	int nvalues;  // Number of categories a variable represented by this node can take
 	vector<string> values; // Categories of possible values
+    unordered_map<string,int> value_map; // map from value name to index
 	vector<float> CPT; // conditional probability table as a 1-d array . Look for BIF format to understand its meaning
 
 public:
@@ -60,6 +62,11 @@ public:
 		return values;
 	}
 
+    int get_value_index(string val_name)
+    {
+        return value_map[val_name];
+    }
+
 	void set_CPT(vector<float> new_CPT)
 	{
 		CPT.clear();
@@ -89,13 +96,15 @@ public:
  // The whole network represted as a list of nodes
 class Network{
 
-	vector <Graph_Node> Pres_Graph;
+	vector<Graph_Node> Pres_Graph;
+    unordered_map<string,int> node_map;
 
 public:
 
 	int addNode(Graph_Node node)
 	{
 		Pres_Graph.push_back(node);
+        node_map[node.get_name()] = Pres_Graph.size()-1;
 		return 0;
 	}  
 
@@ -107,42 +116,25 @@ public:
     // get the index of node with a given name
     int get_index(string val_name)
     {
-        vector<Graph_Node>::iterator listIt;
-        int count=0;
-        for(listIt=Pres_Graph.begin();listIt!=Pres_Graph.end();listIt++)
-        {
-            if(listIt->get_name().compare(val_name)==0)
-                return count;
-            count++;
-        }
-        return -1;
+        return node_map[val_name];
     }
 
 	// get the node at nth index
-    vector<Graph_Node>::iterator get_nth_node(int n)
+    Graph_Node* get_nth_node(int n)
     {
-       vector<Graph_Node>::iterator listIt;
-        int count=0;
-        for(listIt=Pres_Graph.begin();listIt!=Pres_Graph.end();listIt++)
-        {
-            if(count==n)
-                return listIt;
-            count++;
-        }
-        return listIt; 
+        if (n<Pres_Graph.size()) return &Pres_Graph[n];
+        else cout<<"Error! index greater than size of network\n"; return &Pres_Graph[0];
     }
 
     //get the iterator of a node with a given name
-    vector<Graph_Node>::iterator search_node(string val_name)
+    int search_node(string val_name)
     {
-        vector<Graph_Node>::iterator listIt;
-        for(listIt=Pres_Graph.begin();listIt!=Pres_Graph.end();listIt++)
-        {
-            if(listIt->get_name().compare(val_name)==0)
-                return listIt;
+        for(int i=0;i<Pres_Graph.size();i++){
+            if(Pres_Graph[i].get_name().compare(val_name)==0)
+                return i;
         }
     	cout<<"node not found\n";
-        return listIt;
+        return -1;
     }
 };
 
@@ -154,7 +146,7 @@ Network read_network()
   	ifstream myfile("./data/alarm.bif"); 
   	string temp;
   	string name;
-  	vector<string> values;
+    vector<string> values;                                                        
   	
     if (myfile.is_open())
     {
@@ -186,16 +178,14 @@ Network read_network()
      		else if(temp.compare("probability")==0)
      		{ 
 				ss>>temp;
-				ss>>temp;		
-				vector<Graph_Node>::iterator listIt;
-				vector<Graph_Node>::iterator listIt1;
-				listIt=Alarm.search_node(temp);
+				ss>>temp;
+				Graph_Node* listIt=Alarm.get_nth_node(Alarm.search_node(temp));
 				int index=Alarm.get_index(temp);
 				ss>>temp;
 				values.clear();
 				while(temp.compare(")")!=0)
 				{
-					listIt1=Alarm.search_node(temp);
+					Graph_Node* listIt1=Alarm.get_nth_node(Alarm.search_node(temp));
 					listIt1->add_child(index);
 					values.push_back(temp);
 					ss>>temp;
@@ -204,8 +194,8 @@ Network read_network()
 				getline (myfile,line);
 				stringstream ss2;
 				ss2.str(line);
-				ss2>> temp;
-				ss2>> temp;
+				ss2>>temp;
+				ss2>>temp;
 				vector<float> curr_CPT;
 				string::size_type sz;
 				while(temp.compare(";")!=0)
@@ -220,6 +210,62 @@ Network read_network()
   	}
   	return Alarm;
 }
+
+class createCPT{
+
+    public:
+    string dataFileName;
+    Network Alarm;
+    int netsize;
+    vector<float> CPT;
+
+	createCPT(Network Alarmcopy, string datafile){
+        dataFileName = datafile;
+        Alarm = Alarmcopy;
+        netsize = Alarm.netSize();
+    }
+
+    int CPTindex(vector<string> &allVals, int index){
+        Graph_Node* currNode = Alarm.get_nth_node(index);
+        vector<string> parents = (Alarm.get_nth_node(index))->get_Parents();
+        vector<int> parentIndex(parents.size());
+        for(int i=0; i<parents.size(); i++){
+            parentIndex[i] = Alarm.get_index(parents[i]);
+        }
+        int cptindex = 0;
+        int multiplier = 1;
+        for(int i=parentIndex.size()-1; i>=0; i--){
+            cptindex += multiplier*(currNode->get_value_index(allVals[parentIndex[i]]));
+            multiplier *= (Alarm.get_nth_node(parentIndex[i]))->get_nvalues();
+        }
+        return currNode->get_value_index(allVals[index]) + cptindex*(currNode->get_nvalues());
+    }
+
+    void CPTinit(){
+        vector<vector<float>> CPT(netsize);
+        for(int i=0; i<netsize; i++){
+            Graph_Node* currNode = Alarm.get_nth_node(i);
+            CPT[i].resize(currNode->get_CPT().size());      
+        }
+        ifstream myfile(dataFileName);
+        string line;
+        if(myfile.is_open()){
+            while(!myfile.eof()){
+                getline(myfile, line);
+                stringstream ss;
+                ss.str(line);
+                vector<string> allVals(netsize);
+                for(int i=0; i<netsize; i++){
+                    ss>>allVals[i];
+                }
+                for(int i=0; i<netsize; i++){
+                    CPT[i][CPTindex(allVals, i)]++;
+                }
+            }
+        }
+    }
+
+};
 
 int main()
 {
