@@ -235,7 +235,7 @@ class createCPT{
         int cptindex = 0;
         int multiplier = 1;
         for(int i=parentIndex.size()-1; i>=0; i--){
-            cptindex += multiplier*(currNode->get_value_index(allVals[parentIndex[i]]));
+            if(!allVals[parentIndex[i]].compare("?")) cptindex += multiplier*(currNode->get_value_index(allVals[parentIndex[i]]));
             multiplier *= (Alarm.get_nth_node(parentIndex[i]))->get_nvalues();
         }
         return currNode->get_value_index(allVals[index]) + cptindex*(currNode->get_nvalues());
@@ -257,6 +257,7 @@ class createCPT{
                 vector<string> allVals(netsize);
                 for(int i=0; i<netsize; i++){
                     ss>>allVals[i];
+                    allVals[i] = allVals[i].substr(1, allVals[i].size()-2);
                 }
                 for(int i=0; i<netsize; i++){
                     CPT[i][CPTindex(allVals, i)]++;
