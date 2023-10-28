@@ -130,7 +130,7 @@ public:
     int search_node(string val_name)
     {
         for(int i=0;i<Pres_Graph.size();i++){
-            if(Pres_Graph[i].get_name().compare(val_name)==0)
+            if(Pres_Graph[i].get_name().compare(val_name) == 0)
                 return i;
         }
     	cout<<"node not found\n";
@@ -235,11 +235,55 @@ class createCPT{
         int cptindex = 0;
         int multiplier = 1;
         for(int i=parentIndex.size()-1; i>=0; i--){
-            if(!allVals[parentIndex[i]].compare("?")) cptindex += multiplier*(currNode->get_value_index(allVals[parentIndex[i]]));
+            if(allVals[parentIndex[i]].compare("?") == 0) cptindex += multiplier*(currNode->get_value_index(allVals[parentIndex[i]]));
             multiplier *= (Alarm.get_nth_node(parentIndex[i]))->get_nvalues();
         }
         return currNode->get_value_index(allVals[index]) + cptindex*(currNode->get_nvalues());
     }
+
+	float probGivenParents(int index, vector<string> &data, vector<vector<int>>& CPT){
+		int cptindex = CPTindex(data, index);
+		Graph_Node* currNode = Alarm.get_nth_node(index);
+		int probSamples = CPT[index][cptindex];
+		int totalSamples = 0;
+		cptindex -= currNode->get_value_index(data[index]);
+		for(int i=0; i<currNode->get_nvalues(); i++){
+			totalSamples += CPT[index][cptindex + i];
+		}
+		float probability = ((float)probSamples)/((float)totalSamples);
+		return probability;
+	}
+
+	float fullProbability(vector<string> &data, vector<vector<int>>& CPT, int index){
+		float probability = probGivenParents(index, data, CPT);
+		Graph_Node* currNode = Alarm.get_nth_node(index);
+		vector<int> children = currNode->get_children();
+		for(int i=0; i<children.size(); i++){
+			probability *= probGivenParents(children[i], data, CPT);
+		}
+		return probability;
+	}
+
+	void imputeMissing(vector<string> &data, vector<vector<int>>& CPT){
+		int missingIndex = -1;
+		for(int i=0; i<data.size(); i++){
+			if(data[i].compare("?") == 0){
+				missingIndex = i;
+				break;
+			}
+		}
+		if(missingIndex == -1) return;
+		float maxProb = 0;
+		int maxIndex = 0;
+		for(int i=0; i<Alarm.get_nth_node(missingIndex)->get_nvalues(); i++){
+			data[missingIndex] = Alarm.get_nth_node(missingIndex)->get_values()[i];
+			float currProb = fullProbability(data, CPT, missingIndex);
+			if(currProb > maxProb){
+				maxProb = currProb;
+				maxIndex = i;
+			}
+		}
+	}
 
     void CPTinit(){
         vector<vector<float>> CPT(netsize);
@@ -275,7 +319,3 @@ int main()
 	// Example: to do something
 	cout<<"Perfect! Hurrah! \n";
 }
-
-
-
-
