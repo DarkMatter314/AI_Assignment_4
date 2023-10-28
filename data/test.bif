@@ -1,0 +1,29 @@
+network "Alarm" { //37 variables and 37 probability distributions
+}
+
+variable "A" { //3 values
+    type discrete[2] {  "True"  "False" "Sus" };
+	property "position = (54, 35)" ;
+}
+
+variable "B" { //2 values
+    type discrete[2] {  "True"  "False" };
+    property "position = (54, 35)" ;
+}
+
+variable "C" { //4 values
+    type discrete[2] {  "True"  "False" "Sus" "Unknown" };
+    property "position = (54, 35)" ;
+}
+
+probability (  "B" ) { //1 variable(s) and 2 values
+	table -1 -1 ;
+}
+
+probability (  "C" ) { //1 variable(s) and 4 values
+	table -1 -1 -1 -1 ;
+}
+
+probability ( "A" "B" "C" ) { //3 variable(s) and 2 values
+	table -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 ;
+}
