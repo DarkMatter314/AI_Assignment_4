@@ -25,11 +25,14 @@ private:
 
 public:
 	// Constructor- a node is initialised with its name and its categories
-    Graph_Node(string name,int n,vector<string> vals)
+    Graph_Node(string name, int n, vector<string> vals)
 	{
 		Node_Name=name;
 		nvalues=n;
 		values=vals;
+		for(int i=0;i<vals.size();i++){
+			value_map[vals[i]] = i;
+		}
 	}
 
 	string get_name()
@@ -217,7 +220,7 @@ class createCPT{
     string dataFileName;
     Network Alarm;
     int netsize;
-    vector<float> CPT;
+    vector<vector<float>> CPT;
 
 	createCPT(Network Alarmcopy, string datafile){
         dataFileName = datafile;
@@ -227,7 +230,7 @@ class createCPT{
 
     int CPTindex(vector<string> &allVals, int index){
         Graph_Node* currNode = Alarm.get_nth_node(index);
-        vector<string> parents = (Alarm.get_nth_node(index))->get_Parents();
+        vector<string> parents = currNode->get_Parents();
         vector<int> parentIndex(parents.size());
         for(int i=0; i<parents.size(); i++){
             parentIndex[i] = Alarm.get_index(parents[i]);
@@ -235,10 +238,12 @@ class createCPT{
         int cptindex = 0;
         int multiplier = 1;
         for(int i=parentIndex.size()-1; i>=0; i--){
-            if(allVals[parentIndex[i]].compare("?") == 0) cptindex += multiplier*(currNode->get_value_index(allVals[parentIndex[i]]));
+		// cout<<' '<<parents.size()<<" End "<<cptindex<<' ';
+			Graph_Node* parentNode = Alarm.get_nth_node(parentIndex[i]);
+            if(allVals[parentIndex[i]].compare("?") != 0) cptindex += multiplier*(parentNode->get_value_index(allVals[parentIndex[i]]));
             multiplier *= (Alarm.get_nth_node(parentIndex[i]))->get_nvalues();
         }
-        return currNode->get_value_index(allVals[index]) + cptindex*(currNode->get_nvalues());
+        return ((allVals[index].compare("?") != 0) ? currNode->get_value_index(allVals[index]) : 0) + cptindex*(currNode->get_nvalues());
     }
 
 	float probGivenParents(int index, vector<string> &data, vector<vector<int>>& CPT){
@@ -264,7 +269,7 @@ class createCPT{
 		return probability;
 	}
 
-	void imputeMissing(vector<string> &data, vector<vector<int>>& CPT){
+	vector<float> imputeMissing(vector<string> &data, vector<vector<int>>& CPT){
 		int missingIndex = -1;
 		for(int i=0; i<data.size(); i++){
 			if(data[i].compare("?") == 0){
@@ -272,27 +277,27 @@ class createCPT{
 				break;
 			}
 		}
-		if(missingIndex == -1) return;
 		float maxProb = 0;
 		int maxIndex = 0;
-		for(int i=0; i<Alarm.get_nth_node(missingIndex)->get_nvalues(); i++){
+		int nvalues = Alarm.get_nth_node(missingIndex)->get_nvalues();
+		vector<float> sampleWeight(nvalues);
+		for(int i=0; i<nvalues; i++){
 			data[missingIndex] = Alarm.get_nth_node(missingIndex)->get_values()[i];
 			float currProb = fullProbability(data, CPT, missingIndex);
-			if(currProb > maxProb){
-				maxProb = currProb;
-				maxIndex = i;
-			}
+			sampleWeight[i] = currProb;
 		}
+		return sampleWeight;
 	}
 
     void CPTinit(){
-        vector<vector<float>> CPT(netsize);
+        CPT.resize(netsize);
         for(int i=0; i<netsize; i++){
             Graph_Node* currNode = Alarm.get_nth_node(i);
             CPT[i].resize(currNode->get_CPT().size());      
         }
         ifstream myfile(dataFileName);
         string line;
+		int j = 0;
         if(myfile.is_open()){
             while(!myfile.eof()){
                 getline(myfile, line);
@@ -301,11 +306,18 @@ class createCPT{
                 vector<string> allVals(netsize);
                 for(int i=0; i<netsize; i++){
                     ss>>allVals[i];
-                    allVals[i] = allVals[i].substr(1, allVals[i].size()-2);
+                    allVals[i] = allVals[i];
                 }
                 for(int i=0; i<netsize; i++){
-                    CPT[i][CPTindex(allVals, i)]++;
+					// cout<<j<<' '<<i<<' ';
+					int CPTindexVal = CPTindex(allVals, i);
+					if(CPTindexVal >= CPT[i].size()){
+						cout<<"Error! CPTindexVal greater than size of CPT\n";
+					}
+					// cout<<CPTindexVal<<' '<<CPT[i].size()<<'\n';
+                    CPT[i][CPTindexVal]++;
                 }
+				j++;
             }
         }
     }
@@ -316,6 +328,15 @@ int main()
 {
 	Network Alarm;
 	Alarm=read_network();
+	createCPT CPT(Alarm, "./data/records.dat");
+	CPT.CPTinit();
+	cout<<"Initialised CPT\n";
 	// Example: to do something
+	for(auto i: CPT.CPT){
+		for(auto j: i){
+			cout<<j<<" ";
+		}
+		cout<<endl;
+	}
 	cout<<"Perfect! Hurrah! \n";
 }
