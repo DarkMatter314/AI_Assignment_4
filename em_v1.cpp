@@ -221,6 +221,10 @@ class createCPT{
     Network Alarm;
     int netsize;
     vector<vector<float>> CPT;
+	vector<vector<float>> probabilites; 
+	vector<int> total_cnt; 
+	vector<int> missing_positions; 
+	vector<vector<int>> all_data;
 
 	createCPT(Network Alarmcopy, string datafile){
         dataFileName = datafile;
@@ -228,7 +232,8 @@ class createCPT{
         netsize = Alarm.netSize();
     }
 
-    int CPTindex(vector<string> &allVals, int index){
+    int CPTindex(vector<int> &cur_data, int index) //TO FIX. Memoise.
+	{
         Graph_Node* currNode = Alarm.get_nth_node(index);
         vector<string> parents = currNode->get_Parents();
         vector<int> parentIndex(parents.size());
@@ -240,18 +245,23 @@ class createCPT{
         for(int i=parentIndex.size()-1; i>=0; i--){
 		// cout<<' '<<parents.size()<<" End "<<cptindex<<' ';
 			Graph_Node* parentNode = Alarm.get_nth_node(parentIndex[i]);
-            if(allVals[parentIndex[i]].compare("?") != 0) cptindex += multiplier*(parentNode->get_value_index(allVals[parentIndex[i]]));
+            if(cur_data[parentIndex[i]] != -1) 
+				cptindex += multiplier*(cur_data[parentIndex[i]]);
+			
             multiplier *= (Alarm.get_nth_node(parentIndex[i]))->get_nvalues();
         }
-        return ((allVals[index].compare("?") != 0) ? currNode->get_value_index(allVals[index]) : 0) + cptindex*(currNode->get_nvalues());
+		if(cur_data[index] != -1) cptindex += multiplier*(cur_data[index]);
+		return cptindex;
+        //return ((allVals[index].compare("?") != 0) ? currNode->get_value_index(allVals[index]) : 0) + cptindex*(currNode->get_nvalues());
     }
 
-	float probGivenParents(int index, vector<string> &data, vector<vector<int>>& CPT){
+	float probGivenParents(int index, vector<int> &data, vector<vector<int>>& CPT)
+	{
 		int cptindex = CPTindex(data, index);
 		Graph_Node* currNode = Alarm.get_nth_node(index);
 		int probSamples = CPT[index][cptindex];
 		int totalSamples = 0;
-		cptindex -= currNode->get_value_index(data[index]);
+		cptindex -= data[index];
 		for(int i=0; i<currNode->get_nvalues(); i++){
 			totalSamples += CPT[index][cptindex + i];
 		}
@@ -259,7 +269,7 @@ class createCPT{
 		return probability;
 	}
 
-	float fullProbability(vector<string> &data, vector<vector<int>>& CPT, int index){
+	float probGivenMarkovBlanket(vector<int> &data, vector<vector<int>>& CPT, int index){ //TO FIX: use log.
 		float probability = probGivenParents(index, data, CPT);
 		Graph_Node* currNode = Alarm.get_nth_node(index);
 		vector<int> children = currNode->get_children();
@@ -269,62 +279,94 @@ class createCPT{
 		return probability;
 	}
 
-	vector<float> imputeMissing(vector<string> &data, vector<vector<int>>& CPT){
-		int missingIndex = -1;
-		for(int i=0; i<data.size(); i++){
-			if(data[i].compare("?") == 0){
-				missingIndex = i;
-				break;
-			}
+	vector<int> string_to_int_data(vector<string> &allVals) //No data can be missing for this function.
+	{
+		vector<int> data(netsize);
+		for(int i=0; i<netsize; i++){
+			data[i] = Alarm.get_nth_node(i)->get_value_index(allVals[i]);
 		}
+		return data;
+	}
+	
+	vector<float> imputeMissing( int datapoint_index, vector<vector<int>>& CPT){
+		int missingIndex = missing_positions[datapoint_index]; //-1 if there is no missing value.
+		vector<int> data = all_data[datapoint_index];
 		float maxProb = 0;
 		int maxIndex = 0;
 		int nvalues = Alarm.get_nth_node(missingIndex)->get_nvalues();
+		
 		vector<float> sampleWeight(nvalues);
 		for(int i=0; i<nvalues; i++){
-			data[missingIndex] = Alarm.get_nth_node(missingIndex)->get_values()[i];
-			float currProb = fullProbability(data, CPT, missingIndex);
+			data[missingIndex] = Alarm.get_nth_node(missingIndex)->get_value_index(Alarm.get_nth_node(missingIndex)->get_values()[i]);
+			float currProb = probGivenMarkovBlanket(data, CPT, missingIndex);
 			sampleWeight[i] = currProb;
 		}
 		return sampleWeight;
 	}
 
+	void store_data()
+	{
+		ifstream myfile(dataFileName);
+		string line;
+		int j = 0;
+		if(myfile.is_open())
+		{
+			while(!myfile.eof())
+			{
+				getline(myfile, line);
+				stringstream ss;
+				ss.str(line);
+				vector<string> vals(netsize);
+				all_data.push_back(vector<int>(netsize, -1));
+				bool missing = false;
+				for(int i=0; i<netsize; i++){
+					ss>>vals[i];
+					if(vals[i] == "?")
+					{
+						missing = true;
+						missing_positions.push_back(i); //stores the position of the missing values in the jth line.
+					}
+					else
+					{
+						all_data[all_data.size() - 1][i] = (Alarm.get_nth_node(i))->get_value_index(vals[i]); 
+					}
+				}
+				if(!missing)
+				{
+					missing_positions.push_back(-1); //-1 indicates this position has no missing values.
+				}
+			}
+		}
+		cout << "Data stored" << endl; 
+	}
+
     void CPTinit(){
         CPT.resize(netsize);
+		total_cnt.resize(netsize);
         for(int i=0; i<netsize; i++){
             Graph_Node* currNode = Alarm.get_nth_node(i);
             CPT[i].resize(currNode->get_CPT().size());      
         }
-        ifstream myfile(dataFileName);
-        string line;
-		int j = 0;
-        if(myfile.is_open()){
-            while(!myfile.eof()){
-                getline(myfile, line);
-                stringstream ss;
-                ss.str(line);
-                vector<string> allVals(netsize);
-                for(int i=0; i<netsize; i++){
-                    ss>>allVals[i];
-                    allVals[i] = allVals[i];
-                }
-                for(int i=0; i<netsize; i++){
-					// cout<<j<<' '<<i<<' ';
-					int CPTindexVal = CPTindex(allVals, i);
-					if(CPTindexVal >= CPT[i].size()){
-						cout<<"Error! CPTindexVal greater than size of CPT\n";
-					}
-					// cout<<CPTindexVal<<' '<<CPT[i].size()<<'\n';
-                    CPT[i][CPTindexVal]++;
-                }
-				j++;
-            }
-        }
+		int j = 0; int datapoint = 0;
+		store_data(); //stores all the data in all_data vector, and the missing values as well.
+		for(datapoint = 0; datapoint < all_data.size(); datapoint++){
+			for(int i=0; i<netsize; i++){
+				// cout<<j<<' '<<i<<' ';
+				int CPTindexVal = CPTindex(all_data[datapoint], i);
+				if(CPTindexVal >= CPT[i].size())
+				{
+					cerr<<"Error! CPTindexVal greater than size of CPT\n";
+				}
+				// cout<<CPTindexVal<<' '<<CPT[i].size()<<'\n';
+				CPT[i][CPTindexVal]++; //Increases the count of the CPT 
+			}
+			j++;
+		}
+        
     }
-
 };
 
-int main()
+int main() //TO FIX: Use 
 {
 	Network Alarm;
 	Alarm=read_network();
