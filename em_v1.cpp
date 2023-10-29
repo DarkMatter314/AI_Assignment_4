@@ -6,14 +6,14 @@
 #include <sstream>
 #include <cstdlib>
 #include <unordered_map>
-
+#include <set>
 
 // Format checker just assumes you have Alarm.bif and Solved_Alarm.bif (your file) in current directory
 using namespace std;
 
 // Our graph consists of a list of nodes where each node is represented as follows:
-class Graph_Node{
-
+class Graph_Node
+{
 private:
 	string Node_Name;  // Variable name 
 	vector<int> Children; // Children of a particular node - these are index of nodes in graph.
@@ -221,15 +221,22 @@ class createCPT{
     Network Alarm;
     int netsize;
     vector<vector<float>> CPT;
-	vector<vector<float>> probabilites; 
+	vector<vector<float>> CPT_new; 
 	vector<int> total_cnt; 
 	vector<int> missing_positions; 
 	vector<vector<int>> all_data;
-
-	createCPT(Network Alarmcopy, string datafile){
+	//vector<float> sample_weights_for_values; //stores the probability of each value of the missing variable.
+	unordered_map<string, int> node_name_map; //maps the name of the node to its index in the network.
+	vector<vector<int>> markov_blanket; //stores the markov blanket of the missing variable.
+	vector<set<int>> markov_blanket_set; //stores the markov blanket of the missing variable.
+	
+	createCPT(Network Alarmcopy, string datafile)
+	{
         dataFileName = datafile;
         Alarm = Alarmcopy;
         netsize = Alarm.netSize();
+		markov_blanket = vector<vector<int>>(netsize, vector<int>(1,-1)); //stores -1 in all of them at the start.
+		markov_blanket_set = vector<set<int>>(netsize);
     }
 
     int CPTindex(vector<int> &cur_data, int index) //TO FIX. Memoise.
@@ -255,7 +262,7 @@ class createCPT{
         //return ((allVals[index].compare("?") != 0) ? currNode->get_value_index(allVals[index]) : 0) + cptindex*(currNode->get_nvalues());
     }
 
-	float probGivenParents(int index, vector<int> &data, vector<vector<int>>& CPT)
+	float probGivenParents(int index, vector<int> &data)
 	{
 		int cptindex = CPTindex(data, index);
 		Graph_Node* currNode = Alarm.get_nth_node(index);
@@ -269,12 +276,12 @@ class createCPT{
 		return probability;
 	}
 
-	float probGivenMarkovBlanket(vector<int> &data, vector<vector<int>>& CPT, int index){ //TO FIX: use log.
-		float probability = probGivenParents(index, data, CPT);
+	float probGivenMarkovBlanket(vector<int> &data, int index){ //TO FIX: use log.
+		float probability = probGivenParents(index, data);
 		Graph_Node* currNode = Alarm.get_nth_node(index);
 		vector<int> children = currNode->get_children();
 		for(int i=0; i<children.size(); i++){
-			probability *= probGivenParents(children[i], data, CPT);
+			probability *= probGivenParents(children[i], data);
 		}
 		return probability;
 	}
@@ -288,17 +295,17 @@ class createCPT{
 		return data;
 	}
 	
-	vector<float> imputeMissing( int datapoint_index, vector<vector<int>>& CPT){
+	vector<float> imputeMissing( int datapoint_index)
+	{ 
 		int missingIndex = missing_positions[datapoint_index]; //-1 if there is no missing value.
 		vector<int> data = all_data[datapoint_index];
 		float maxProb = 0;
 		int maxIndex = 0;
 		int nvalues = Alarm.get_nth_node(missingIndex)->get_nvalues();
-		
 		vector<float> sampleWeight(nvalues);
 		for(int i=0; i<nvalues; i++){
 			data[missingIndex] = Alarm.get_nth_node(missingIndex)->get_value_index(Alarm.get_nth_node(missingIndex)->get_values()[i]);
-			float currProb = probGivenMarkovBlanket(data, CPT, missingIndex);
+			float currProb = probGivenMarkovBlanket(data, missingIndex);
 			sampleWeight[i] = currProb;
 		}
 		return sampleWeight;
@@ -340,19 +347,121 @@ class createCPT{
 		cout << "Data stored" << endl; 
 	}
 
-    void CPTinit(){
+	set<int> get_markov_blanket_set(int index)
+	{
+		if(markov_blanket[index][0] != -1) return markov_blanket_set[index]; //if the markov blanket has already been calculated, return it.
+		else
+		markov_blanket[index].clear(); //else, calculate it.
+		// vector<int> markov_blanket;
+		Graph_Node* currNode = Alarm.get_nth_node(index);
+		vector<string> parent_names = currNode->get_Parents();
+		vector<int> parents;
+		for(int i=0; i<parent_names.size(); i++){
+			parents.push_back(Alarm.get_index(parent_names[i]));
+		}
+		vector<int> children = currNode->get_children();
+		for(int i=0; i<parents.size(); i++){
+			markov_blanket[index].push_back(parents[i]);
+		}
+		for(int i=0; i<children.size(); i++){
+			markov_blanket[index].push_back(children[i]);
+			vector<string> child_parents = Alarm.get_nth_node(children[i])->get_Parents();
+			for(int j=0; j<child_parents.size(); j++)
+			{
+				markov_blanket[index].push_back(Alarm.get_index(child_parents[j]));
+			}
+		}
+		markov_blanket_set[index] = set<int>(markov_blanket[index].begin(), markov_blanket[index].end()); //we also set this up.
+		return markov_blanket_set[index];
+	}
+
+	void calculate_probabilities()
+	{
+		//first we reset our current CPT_new value. 
+		for(int i=0; i<netsize; i++)
+		{
+			for(int j=0; j<CPT_new[i].size(); j++)
+			{
+				CPT_new[i][j] = 0;
+			}
+		}
+		vector<float> sample_weights_for_values; 
+		for(int datapoint = 0;datapoint < all_data.size(); datapoint++)
+		{
+			int missing_pos_vals = 0;
+			if(missing_positions[datapoint] >= 0)
+			{
+				//then there is a missing data in this data entry.
+				sample_weights_for_values = imputeMissing(datapoint);
+				missing_pos_vals = Alarm.get_nth_node(missing_positions[datapoint])->get_nvalues();
+			}
+			for(int i=0; i<netsize; i++)
+			{
+				if(i == missing_positions[datapoint])
+				{
+					//then we have to use the sample_weights_for_values.
+					for(int j=0; j<sample_weights_for_values.size(); j++)
+					{
+						CPT_new[i][j] += sample_weights_for_values[j];
+					}
+					continue;
+				}
+				else if(get_markov_blanket_set(i).count(missing_positions[datapoint]) == 0)
+				{
+					//then the missing value is not in the markov blanket of the current node
+					int CPTindexVal = CPTindex(all_data[datapoint], i);
+					if(CPTindexVal >= CPT[i].size())
+					{
+						cerr<<"Error! CPTindexVal greater than size of CPT\n";
+					}
+					CPT_new[i][all_data[datapoint][i]] += CPT[i][CPTindexVal]; //Increases the count of the CPT 
+					continue;
+				}
+				//else, the markov blanket of the current node contains the missing value.
+				//TO FIX, make this loop faster by not duplicating it each time.
+				vector<int> cur_data = all_data[datapoint];
+				for(int j = 0; j < Alarm.get_nth_node(i)->get_nvalues(); j++)
+				{
+					cur_data[missing_positions[datapoint]] = j; //updated this value.
+					int CPTindexVal = CPTindex(cur_data, i);
+					if(CPTindexVal >= CPT[i].size())
+					{
+						cerr<<"Error! CPTindexVal greater than size of CPT\n";
+					}
+					CPT_new[i][j] += CPT[i][CPTindexVal]*probGivenMarkovBlanket(cur_data, i);
+				}
+			}
+		}
+		CPT = CPT_new;
+	}
+
+    void CPTinit()
+	{
         CPT.resize(netsize);
+		CPT_new.resize(netsize);
 		total_cnt.resize(netsize);
         for(int i=0; i<netsize; i++){
             Graph_Node* currNode = Alarm.get_nth_node(i);
-            CPT[i].resize(currNode->get_CPT().size());      
+            CPT[i].resize(currNode->get_CPT().size()); 
+			CPT_new[i].resize(currNode->get_CPT().size());     
         }
 		int j = 0; int datapoint = 0;
 		store_data(); //stores all the data in all_data vector, and the missing values as well.
-		for(datapoint = 0; datapoint < all_data.size(); datapoint++){
+		for(datapoint = 0; datapoint < all_data.size(); datapoint++)
+		{
+			if(missing_positions[datapoint] >= 0)
+			{
+				//then there is a missing data in this data entry.
+				vector<float> sample_weights_for_values = imputeMissing(datapoint);
+				for(int i=0; i<sample_weights_for_values.size(); i++)
+				{
+					CPT[missing_positions[datapoint]][i] += sample_weights_for_values[i];
+				}
+			}
 			for(int i=0; i<netsize; i++){
-				// cout<<j<<' '<<i<<' ';
-				int CPTindexVal = CPTindex(all_data[datapoint], i);
+				int CPTindexVal = -1;
+				if(i != missing_positions[datapoint])
+					CPTindexVal = CPTindex(all_data[datapoint], i);
 				if(CPTindexVal >= CPT[i].size())
 				{
 					cerr<<"Error! CPTindexVal greater than size of CPT\n";
@@ -362,7 +471,6 @@ class createCPT{
 			}
 			j++;
 		}
-        
     }
 };
 
@@ -373,6 +481,8 @@ int main() //TO FIX: Use
 	createCPT CPT(Alarm, "./data/records.dat");
 	CPT.CPTinit();
 	cout<<"Initialised CPT\n";
+	CPT.calculate_probabilities();
+	cout << "one iteration done\n"; 
 	// Example: to do something
 	for(auto i: CPT.CPT){
 		for(auto j: i){
