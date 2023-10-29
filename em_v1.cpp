@@ -476,15 +476,19 @@ class createCPT{
 					CPT[missing_positions[datapoint]][i] += sample_weights_for_values[i];
 				}
 				//cout << "Missing value imputed for datapoint " << datapoint << " at position " << missing_positions[datapoint] << "\n"; 
-				continue;
+				// continue;
 			}
-			for(int i=0; i<netsize; i++){
+			for(int i=0; i<netsize; i++)
+			{
+				if(i == missing_positions[datapoint])
+				{
+					continue;
+				}
 				int CPTindexVal = -1;
-				if(i != missing_positions[datapoint])
-					CPTindexVal = CPTindex(all_data[datapoint], i);
+				// if(i != missing_positions[datapoint])
+				CPTindexVal = CPTindex(all_data[datapoint], i);
 				if(CPTindexVal >= CPT[i].size())
 				{
-
 					cerr<<"Error! CPTindexVal greater than size of CPT in CPT init()\n";
 				}
 				// cout<<CPTindexVal<<' '<<CPT[i].size()<<'\n';
