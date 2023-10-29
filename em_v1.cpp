@@ -471,12 +471,17 @@ class createCPT{
 			{
 				//then there is a missing data in this data entry.
 				vector<float> sample_weights_for_values = imputeMissing(datapoint);
+				float total_weight = 0;
 				for(int i=0; i<sample_weights_for_values.size(); i++)
 				{
 					CPT[missing_positions[datapoint]][i] += sample_weights_for_values[i];
+					total_weight += sample_weights_for_values[i];
 				}
 				//cout << "Missing value imputed for datapoint " << datapoint << " at position " << missing_positions[datapoint] << "\n"; 
-				// continue;
+				if(total_weight < 0.9)
+				{
+					cout << total_weight << " is less than 1" << endl;
+				}
 			}
 			for(int i=0; i<netsize; i++)
 			{
