@@ -506,12 +506,22 @@ class createCPT{
 				if(CPTindexVal >= CPT[i].size())
 				{
 					cerr<<"Error! CPTindexVal greater than size of CPT in CPT init()\n";
-					// cout<<CPTindexVal<<' '<<CPT[i].size()<<'\n';
 				}
 				CPT[i][CPTindexVal]++; //Increases the count of the CPT 
 			}
 		}
     }
+
+	void converge_probabilities()
+	{
+		int iterations = 0;
+		while(iterations < 100)
+		{
+			cout << "Iteration: " << iterations << "\n";
+			calculate_probabilities();
+			iterations++;
+		}
+	}
 };
 
 int main() //TO FIX: Use 
@@ -521,17 +531,9 @@ int main() //TO FIX: Use
 	createCPT CPT(Alarm, "./data/records.dat");
 	CPT.CPTinit();
 	cout<<"Initialised CPT\n";
-	try{
-		CPT.calculate_probabilities();
-	}
-	catch(exception& e)
-	{
-		cout<<"Exception caught\n";
-	}
-	
-	cout << "one iteration done\n"; 
-	// Example: to do something
-	for(auto i: CPT.CPT_new){
+	CPT.converge_probabilities();
+		// Example: to do something
+	for(auto i: CPT.CPT){
 		for(auto j: i){
 			cout<<j<<" ";
 		}
