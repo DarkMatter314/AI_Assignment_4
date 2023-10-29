@@ -302,17 +302,25 @@ class createCPT{
 	vector<float> imputeMissing( int datapoint_index)
 	{ 
 		int missingIndex = missing_positions[datapoint_index]; //-1 if there is no missing value.
+		if(missingIndex == -1){
+			cout << "No missing value in this datapoint\n";
+			return vector<float>();
+		}
 		vector<int> data = all_data[datapoint_index];
-		float maxProb = 0;
+		float totalProb = 0;
 		int maxIndex = 0;
-		int nvalues = Alarm.get_nth_node(missingIndex)->get_nvalues();
+		Graph_Node* missingNode = Alarm.get_nth_node(missingIndex);
+		int nvalues = missingNode->get_nvalues();
 		vector<float> sampleWeight(nvalues);
-
 		for(int i=0; i<nvalues; i++)
 		{
-			data[missingIndex] = Alarm.get_nth_node(missingIndex)->get_value_index(Alarm.get_nth_node(missingIndex)->get_values()[i]);
+			data[missingIndex] = i;
 			float currProb = probGivenMarkovBlanket(data, missingIndex);
 			sampleWeight[i] = currProb;
+			totalProb += currProb;
+		}
+		for(int i=0; i<nvalues; i++){
+			sampleWeight[i] /= totalProb;
 		}
 		return sampleWeight;
 	}
