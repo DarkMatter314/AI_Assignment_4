@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <unordered_map>
 #include <set>
+#include<exception>
 
 // Format checker just assumes you have Alarm.bif and Solved_Alarm.bif (your file) in current directory
 using namespace std;
@@ -126,7 +127,7 @@ public:
     Graph_Node* get_nth_node(int n)
     {
         if (n<Pres_Graph.size()) return &Pres_Graph[n];
-        else cout<<"Error! index greater than size of network\n"; return &Pres_Graph[0];
+        else cerr<<"Error! index greater than size of network\n"; return &Pres_Graph[0];
     }
 
     //get the iterator of a node with a given name
@@ -303,7 +304,9 @@ class createCPT{
 		int maxIndex = 0;
 		int nvalues = Alarm.get_nth_node(missingIndex)->get_nvalues();
 		vector<float> sampleWeight(nvalues);
-		for(int i=0; i<nvalues; i++){
+
+		for(int i=0; i<nvalues; i++)
+		{
 			data[missingIndex] = Alarm.get_nth_node(missingIndex)->get_value_index(Alarm.get_nth_node(missingIndex)->get_values()[i]);
 			float currProb = probGivenMarkovBlanket(data, missingIndex);
 			sampleWeight[i] = currProb;
@@ -328,7 +331,7 @@ class createCPT{
 				bool missing = false;
 				for(int i=0; i<netsize; i++){
 					ss>>vals[i];
-					if(vals[i] == "?")
+					if(vals[i] == "\"?\"")
 					{
 						missing = true;
 						missing_positions.push_back(i); //stores the position of the missing values in the jth line.
@@ -412,7 +415,7 @@ class createCPT{
 					int CPTindexVal = CPTindex(all_data[datapoint], i);
 					if(CPTindexVal >= CPT[i].size())
 					{
-						cerr<<"Error! CPTindexVal greater than size of CPT\n";
+						cerr<<"err not in markovblanket greater than size of CPT\n";
 					}
 					CPT_new[i][all_data[datapoint][i]] += CPT[i][CPTindexVal]; //Increases the count of the CPT 
 					continue;
@@ -426,7 +429,8 @@ class createCPT{
 					int CPTindexVal = CPTindex(cur_data, i);
 					if(CPTindexVal >= CPT[i].size())
 					{
-						cerr<<"Error! CPTindexVal greater than size of CPT\n";
+						cerr<<"Error! IN CALC PROBS CPTindexVal greater than size of CPT\n";
+						throw exception(); 
 					}
 					CPT_new[i][j] += CPT[i][CPTindexVal]*probGivenMarkovBlanket(cur_data, i);
 				}
@@ -443,10 +447,15 @@ class createCPT{
         for(int i=0; i<netsize; i++){
             Graph_Node* currNode = Alarm.get_nth_node(i);
             CPT[i].resize(currNode->get_CPT().size()); 
-			CPT_new[i].resize(currNode->get_CPT().size());     
+			CPT_new[i].resize(currNode->get_CPT().size());  
+			for(int j = 0; j < CPT[i].size(); j++)
+			{
+				CPT[i][j] = 1; //Laplace smoothing. initialising all as 1.
+				CPT_new[i][j] = 1;
+			}   
         }
-		int j = 0; int datapoint = 0;
-		store_data(); //stores all the data in all_data vector, and the missing values as well.
+		this->store_data(); //stores all the data in all_data vector, and the missing values as well.
+		int datapoint = 0;
 		for(datapoint = 0; datapoint < all_data.size(); datapoint++)
 		{
 			if(missing_positions[datapoint] >= 0)
@@ -457,6 +466,8 @@ class createCPT{
 				{
 					CPT[missing_positions[datapoint]][i] += sample_weights_for_values[i];
 				}
+				//cout << "Missing value imputed for datapoint " << datapoint << " at position " << missing_positions[datapoint] << "\n"; 
+				continue;
 			}
 			for(int i=0; i<netsize; i++){
 				int CPTindexVal = -1;
@@ -464,12 +475,12 @@ class createCPT{
 					CPTindexVal = CPTindex(all_data[datapoint], i);
 				if(CPTindexVal >= CPT[i].size())
 				{
-					cerr<<"Error! CPTindexVal greater than size of CPT\n";
+
+					cerr<<"Error! CPTindexVal greater than size of CPT in CPT init()\n";
 				}
 				// cout<<CPTindexVal<<' '<<CPT[i].size()<<'\n';
 				CPT[i][CPTindexVal]++; //Increases the count of the CPT 
 			}
-			j++;
 		}
     }
 };
@@ -490,5 +501,4 @@ int main() //TO FIX: Use
 		}
 		cout<<endl;
 	}
-	cout<<"Perfect! Hurrah! \n";
 }
