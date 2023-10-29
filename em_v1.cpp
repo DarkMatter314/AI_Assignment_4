@@ -218,11 +218,12 @@ Network read_network(string file_name)
   	return Alarm;
 }
 
-void write_output_file(vector<vector<float>> CPT, string file_out_name, string file_in_name)
+double write_output_file(vector<vector<float>> CPT, string file_out_name, string file_in_name)
 {
 	ifstream infile(file_in_name);
 	ofstream outfile(file_out_name);
 	string line;
+	double total_error = 0; 
 	int j = 0;
 	cout << "writing to output file now" << endl;
 	if(infile.is_open() && outfile.is_open())
@@ -255,12 +256,14 @@ void write_output_file(vector<vector<float>> CPT, string file_out_name, string f
 			{
 				outfile << CPT[node_index][i] << " ";
 				ss >> temp; //at the same time we keep getting -1 into the stream.
+				total_error += abs(CPT[node_index][i] - atof(temp.c_str()));
 			}
 			ss >> temp;
 			outfile << temp << '\n';
 			node_index++; 
 		}
 	}
+	return total_error;
 }
 
 class createCPT{
@@ -576,12 +579,7 @@ int main(int argc, char* argv[])
 	createCPT CPT(Alarm, string(argv[2]));
 	CPT.CPTinit();
 	cout<<"Initialised CPT\n";
-	// CPT.converge_probabilities();
-	write_output_file(CPT.CPT, "solved_alarm.bif", string(argv[1]));
-	// for(auto i: CPT.CPT){
-	// 	for(auto j: i){
-	// 		cout<<j<<" ";
-	// 	}
-	// 	cout<<endl;
-	// }
+	CPT.converge_probabilities(); //Converges the probabilities. Currently uses fixed number of 100 iterations.
+	double total_error = write_output_file(CPT.CPT, "solved_alarm.bif", string(argv[1]));
+	cout << "Total Error: " << total_error << endl;
 }
