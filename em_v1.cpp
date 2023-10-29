@@ -231,7 +231,7 @@ class createCPT{
 	vector<vector<int>> all_data;
 	//vector<float> sample_weights_for_values; //stores the probability of each value of the missing variable.
 	unordered_map<string, int> node_name_map; //maps the name of the node to its index in the network.
-	vector<vector<int>> markov_blanket; //stores the markov blanket of the missing variable.
+	vector<bool> markov_blanket_done; //stores the markov blanket of the missing variable.
 	vector<set<int>> markov_blanket_set; //stores the markov blanket of the missing variable.
 	
 	createCPT(Network Alarmcopy, string datafile)
@@ -239,7 +239,7 @@ class createCPT{
         dataFileName = datafile;
         Alarm = Alarmcopy;
         netsize = Alarm.netSize();
-		markov_blanket = vector<vector<int>>(netsize, vector<int>(1,-1)); //stores -1 in all of them at the start.
+		markov_blanket_done = vector<bool>(netsize, false);
 		markov_blanket_set = vector<set<int>>(netsize);
     }
 
@@ -307,11 +307,17 @@ class createCPT{
 			return vector<float>();
 		}
 		vector<int> data = all_data[datapoint_index];
-		float totalProb = 0;
+		if(missingIndex == -1)
+		{
+			cout << "No missing values in this datapoint\n";
+			return vector<float>(1,1);
+		}
+		float maxProb = 0;
 		int maxIndex = 0;
 		Graph_Node* missingNode = Alarm.get_nth_node(missingIndex);
 		int nvalues = missingNode->get_nvalues();
 		vector<float> sampleWeight(nvalues);
+		float totalProb = 0;
 		for(int i=0; i<nvalues; i++)
 		{
 			data[missingIndex] = i;
@@ -363,29 +369,30 @@ class createCPT{
 
 	set<int> get_markov_blanket_set(int index)
 	{
-		if(markov_blanket[index][0] != -1) return markov_blanket_set[index]; //if the markov blanket has already been calculated, return it.
+		if(markov_blanket_done[index]) return markov_blanket_set[index]; //if the markov blanket has already been calculated, return it.
 		else
-		markov_blanket[index].clear(); //else, calculate it.
-		// vector<int> markov_blanket;
+		markov_blanket_done[index] = true; //else,we calculate it and cache it.
+		vector<int> markov_blanket;
 		Graph_Node* currNode = Alarm.get_nth_node(index);
 		vector<string> parent_names = currNode->get_Parents();
 		vector<int> parents;
 		for(int i=0; i<parent_names.size(); i++){
 			parents.push_back(Alarm.get_index(parent_names[i]));
 		}
-		vector<int> children = currNode->get_children();
 		for(int i=0; i<parents.size(); i++){
-			markov_blanket[index].push_back(parents[i]);
+			markov_blanket.push_back(parents[i]);
 		}
+		vector<int> children = currNode->get_children();
 		for(int i=0; i<children.size(); i++){
-			markov_blanket[index].push_back(children[i]);
+			markov_blanket.push_back(children[i]);
 			vector<string> child_parents = Alarm.get_nth_node(children[i])->get_Parents();
 			for(int j=0; j<child_parents.size(); j++)
 			{
-				markov_blanket[index].push_back(Alarm.get_index(child_parents[j]));
+				if(child_parents[j] != currNode->get_name()) //only the other parents of the children.
+					markov_blanket.push_back(Alarm.get_index(child_parents[j]));
 			}
 		}
-		markov_blanket_set[index] = set<int>(markov_blanket[index].begin(), markov_blanket[index].end()); //we also set this up.
+		markov_blanket_set[index] = set<int>(markov_blanket.begin(), markov_blanket.end()); //we also set this up.
 		return markov_blanket_set[index];
 	}
 
@@ -400,51 +407,52 @@ class createCPT{
 			}
 		}
 		
-		vector<float> sample_weights_for_values; 
+		vector<float> sample_weights_for_values; //stores the probability of each value of the missing variable. Updated for each datapoint.
 		for(int datapoint = 0;datapoint < all_data.size(); datapoint++)
 		{
 			int missing_pos_vals = 0;
+			vector<int> cur_data = all_data[datapoint]; //stores the current datapoint.
+			// vector<vector<int>> missing_filled_data;
 			if(missing_positions[datapoint] >= 0)
 			{
 				//then there is a missing data in this data entry.
 				sample_weights_for_values = imputeMissing(datapoint);
 				missing_pos_vals = sample_weights_for_values.size(); 
+				for(int i = 0; i < missing_pos_vals; i++)
+				{
+					cur_data[missing_positions[datapoint]] = i; //updated this value.
+					// missing_filled_data.push_back(cur_data); //storing this since we will use it frequently
+					int cpt_index = CPTindex(cur_data, missing_positions[datapoint]);
+					if(cpt_index >= CPT[missing_positions[datapoint]].size())
+					{
+						cerr<<"Error! CPTindexVal greater than size of CPT in CPT init()\n";
+						// cout<<CPTindexVal<<' '<<CPT[i].size()<<'\n';
+						throw exception();
+					}
+					CPT_new[missing_positions[datapoint]][cpt_index] += sample_weights_for_values[i]; //increasing the count of the CPT by the appropriate value.
+				}
+				cur_data[missing_positions[datapoint]] = all_data[datapoint][missing_positions[datapoint]]; //resetting the value to its original one for the next steps.
 			}
-			// continue;
+
 			for(int i=0; i<netsize; i++)
 			{
 				if(i == missing_positions[datapoint])
-				{
-					//then we have to use the sample_weights_for_values.
-					float total = 0;
-					for(int j=0; j<sample_weights_for_values.size(); j++)
-					{
-						CPT_new[i][j] += sample_weights_for_values[j];
-						total += sample_weights_for_values[j];
-					}
-					if(total < 0.9)
-					{
-						cout << "total " << total << " is less than even 0.9" << endl;
-					}
+				{ 	//Then we do nothing since we have already calculated the probabilities for this in the above block.
 					continue;
 				}
-				/*else if(get_markov_blanket_set(i).count(missing_positions[datapoint]) == 0)
+				else if(get_markov_blanket_set(i).count(missing_positions[datapoint]) == 0) //then the missing value is not in the markov blanket of the current node
 				{
-					//then the missing value is not in the markov blanket of the current node
 					int CPTindexVal = CPTindex(all_data[datapoint], i);
 					if(CPTindexVal >= CPT[i].size())
 					{
-						cerr<<"err not in markovblanket greater than size of CPT\n";
+						cerr<<"err not in markov blanket greater than size of CPT\n";
 						throw exception();
 					}
-					CPT_new[i][all_data[datapoint][i]] += 1; //Increases the count of the CPT 
+					CPT_new[i][CPTindexVal] += 1; //Increases the count of the CPT 
 					// cout << "missing not in markov blanket\n";
 					continue;
 				}
 				//else, the markov blanket of the current node contains the missing value.
-				//TO FIX, make this loop faster by not duplicating it each time.
-				// continue;
-				vector<int> cur_data = all_data[datapoint];
 				for(int j = 0; j < missing_pos_vals; j++)
 				{
 					cur_data[missing_positions[datapoint]] = j; //updated this value.
@@ -456,12 +464,12 @@ class createCPT{
 						cout << "Missing position: " << missing_positions[datapoint] << "\n";
 						throw exception(); 
 					}
-					CPT_new[i][j] += sample_weights_for_values[j];
-				}*/
+					CPT_new[i][CPTindexVal] += sample_weights_for_values[j];
+				}
 			}
 			// cout << "datapoint " << datapoint << " done";
 		}
-		// CPT = CPT_new;
+		CPT = CPT_new; //At the end of the iteration, we update the CPT. 
 	}
 
     void CPTinit()
@@ -523,7 +531,7 @@ int main() //TO FIX: Use
 	
 	cout << "one iteration done\n"; 
 	// Example: to do something
-	for(auto i: CPT.CPT){
+	for(auto i: CPT.CPT_new){
 		for(auto j: i){
 			cout<<j<<" ";
 		}
