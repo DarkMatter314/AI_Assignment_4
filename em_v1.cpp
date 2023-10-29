@@ -218,6 +218,51 @@ Network read_network(string file_name)
   	return Alarm;
 }
 
+void write_output_file(vector<vector<float>> CPT, string file_out_name, string file_in_name)
+{
+	ifstream infile(file_in_name);
+	ofstream outfile(file_out_name);
+	string line;
+	int j = 0;
+	cout << "writing to output file now" << endl;
+	if(infile.is_open() && outfile.is_open())
+	{
+		int node_index = 0;
+		while(!infile.eof())
+		{
+			getline(infile, line);
+			stringstream ss;
+			ss.str(line);
+			string temp;
+			ss >> temp; //reading the first word.
+			if(temp != "probability")
+			{
+				outfile << line << '\n';
+				continue;
+			}
+			//else we are inside probability.
+			outfile << line << '\n'; //writing the probability line.
+			getline(infile, line); 
+			ss.str(line);
+			ss >> temp; //reading the first word.
+			while(temp != "table")
+			{
+				ss >> temp;
+			}
+			//now we are inside the table.
+			outfile << temp << " ";
+			for(int i=0; i<CPT[node_index].size(); i++)
+			{
+				outfile << CPT[node_index][i] << " ";
+				ss >> temp; //at the same time we keep getting -1 into the stream.
+			}
+			ss >> temp;
+			outfile << temp << '\n';
+			node_index++; 
+		}
+	}
+}
+
 class createCPT{
 
     public:
@@ -531,12 +576,12 @@ int main(int argc, char* argv[])
 	createCPT CPT(Alarm, string(argv[2]));
 	CPT.CPTinit();
 	cout<<"Initialised CPT\n";
-	CPT.converge_probabilities();
-		// Example: to do something
-	for(auto i: CPT.CPT){
-		for(auto j: i){
-			cout<<j<<" ";
-		}
-		cout<<endl;
-	}
+	// CPT.converge_probabilities();
+	write_output_file(CPT.CPT, "solved_alarm.bif", string(argv[1]));
+	// for(auto i: CPT.CPT){
+	// 	for(auto j: i){
+	// 		cout<<j<<" ";
+	// 	}
+	// 	cout<<endl;
+	// }
 }
