@@ -243,7 +243,7 @@ class createCPT{
 		markov_blanket_set = vector<set<int>>(netsize);
     }
 
-    int CPTindex(vector<int> &cur_data, int index) //TO FIX. Memoise.
+    int CPTindex(vector<int> &cur_data, int index) //TO OPTIMISE. Memoise.
 	{
         Graph_Node* currNode = Alarm.get_nth_node(index);
         vector<string> parents = currNode->get_Parents();
@@ -280,7 +280,7 @@ class createCPT{
 		return probability;
 	}
 
-	float probGivenMarkovBlanket(vector<int> &data, int index){ //TO FIX: use log.
+	float probGivenMarkovBlanket(vector<int> &data, int index){ //TO OPTIMISE: use log. - Calculates relative probability
 		float probability = probGivenParents(index, data);
 		Graph_Node* currNode = Alarm.get_nth_node(index);
 		vector<int> children = currNode->get_children();
@@ -290,7 +290,7 @@ class createCPT{
 		return probability;
 	}
 
-	vector<int> string_to_int_data(vector<string> &allVals) //No data can be missing for this function.
+	vector<int> string_to_int_data(vector<string> &allVals) // No data can be missing for this function.
 	{
 		vector<int> data(netsize);
 		for(int i=0; i<netsize; i++){
