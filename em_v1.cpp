@@ -398,6 +398,12 @@ class createCPT{
 				sample_weights_for_values = imputeMissing(datapoint);
 				missing_pos_vals = Alarm.get_nth_node(missing_positions[datapoint])->get_nvalues();
 			}
+			cout << "for datapoint " << datapoint << ", sample_weights_for_values for index " << missing_positions[datapoint] <<":\n";
+			for(int i=0; i<sample_weights_for_values.size(); i++)
+			{
+				cout << i << ":" << sample_weights_for_values[i] << " ";
+			}
+			cout << "\n";
 			for(int i=0; i<netsize; i++)
 			{
 				if(i == missing_positions[datapoint])
@@ -423,18 +429,21 @@ class createCPT{
 				//else, the markov blanket of the current node contains the missing value.
 				//TO FIX, make this loop faster by not duplicating it each time.
 				vector<int> cur_data = all_data[datapoint];
-				for(int j = 0; j < Alarm.get_nth_node(i)->get_nvalues(); j++)
+				for(int j = 0; j < missing_pos_vals; j++)
 				{
 					cur_data[missing_positions[datapoint]] = j; //updated this value.
 					int CPTindexVal = CPTindex(cur_data, i);
 					if(CPTindexVal >= CPT[i].size())
 					{
-						cerr<<"Error! IN CALC PROBS CPTindexVal greater than size of CPT\n";
+						cerr<<"CPTindexVal greater than size of CPT\n";
+						cout <<"CPTindexVal: " << CPTindexVal << " CPT[i].size(): " << CPT[i].size() << ", and node: " << i << "\n"; 
+						cout << "Missing position: " << missing_positions[datapoint] << "\n";
 						throw exception(); 
 					}
 					CPT_new[i][j] += CPT[i][CPTindexVal]*probGivenMarkovBlanket(cur_data, i);
 				}
 			}
+			cout << "datapoint " << datapoint << " done\n";
 		}
 		CPT = CPT_new;
 	}
@@ -492,8 +501,8 @@ int main() //TO FIX: Use
 	createCPT CPT(Alarm, "./data/records.dat");
 	CPT.CPTinit();
 	cout<<"Initialised CPT\n";
-	CPT.calculate_probabilities();
-	cout << "one iteration done\n"; 
+	// CPT.calculate_probabilities();
+	// cout << "one iteration done\n"; 
 	// Example: to do something
 	for(auto i: CPT.CPT){
 		for(auto j: i){
