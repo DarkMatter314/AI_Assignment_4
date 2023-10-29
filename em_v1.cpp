@@ -263,6 +263,8 @@ double write_output_file(vector<vector<float>> CPT, string file_out_name, string
 			node_index++; 
 		}
 	}
+	outfile.close();
+	infile.close();
 	return total_error;
 }
 
@@ -570,16 +572,47 @@ class createCPT{
 			iterations++;
 		}
 	}
+
+	void convertCountsToCPT()
+	{
+		vector<vector<float>> finalCPT;
+		finalCPT.resize(netsize);
+		for(int i=0; i<CPT.size(); i++)
+		{
+			finalCPT[i].resize(CPT[i].size());
+			float total = 0;
+			Graph_Node* currNode = Alarm.get_nth_node(i);
+			int total_values = currNode->get_nvalues();
+			int values_for_one = CPT[i].size() / total_values;
+			for(int j=0; j<values_for_one; j++)
+			{
+				for(int k=0; k < total_values; k++)
+				{
+					total += CPT[i][k * values_for_one + j];
+				}
+				for(int k=0; k < total_values; k++)
+				{
+					finalCPT[i][k * values_for_one + j] = CPT[i][k * values_for_one + j] / total;
+				}
+			}
+		}
+		CPT = finalCPT;
+	}
 };
 
 int main(int argc, char* argv[])
 {
+	if(argc != 3){
+		cout << "Usage: ./em_v1 <bayesnet> <datafile>\n";
+		return 0;
+	}
 	Network Alarm;
 	Alarm=read_network(string(argv[1]));
 	createCPT CPT(Alarm, string(argv[2]));
 	CPT.CPTinit();
 	cout<<"Initialised CPT\n";
 	CPT.converge_probabilities(); //Converges the probabilities. Currently uses fixed number of 100 iterations.
-	double total_error = write_output_file(CPT.CPT, "solved_alarm.bif", string(argv[1]));
+	CPT.convertCountsToCPT();
+	double total_error = write_output_file(CPT.CPT, "solved_counts.bif", string(argv[1]));
 	cout << "Total Error: " << total_error << endl;
 }
