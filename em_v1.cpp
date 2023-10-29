@@ -11,6 +11,7 @@
 #include<random>
 #include<chrono>
 #include <cstdlib> 
+#include <cmath>
 
 // Format checker just assumes you have Alarm.bif and Solved_Alarm.bif (your file) in current directory
 using namespace std;
@@ -322,9 +323,9 @@ class createCPT{
 		Graph_Node* currNode = Alarm.get_nth_node(index);
 		int probSamples = CPT[index][cptindex];
 		int totalSamples = 0;
-		cptindex -= data[index];
+		cptindex -= ((CPT[index].size() * data[index]) / (currNode->get_nvalues()));
 		for(int i=0; i<currNode->get_nvalues(); i++){
-			totalSamples += CPT[index][cptindex + i];
+			totalSamples += CPT[index][cptindex + ((CPT[index].size() * i) / (currNode->get_nvalues()))];
 		}
 		float probability = ((float)probSamples)/((float)totalSamples);
 		return probability;
@@ -453,7 +454,7 @@ class createCPT{
 		{
 			for(int j=0; j<CPT_new[i].size(); j++)
 			{
-				CPT_new[i][j] = 1; //initializing as 1 for laplace smoothing.
+				CPT_new[i][j] = 0.01; //initializing as 1 for laplace smoothing.
 			}
 		}
 		
@@ -534,8 +535,8 @@ class createCPT{
 			CPT_new[i].resize(currNode->get_CPT().size());  
 			for(int j = 0; j < CPT[i].size(); j++)
 			{
-				CPT[i][j] = 1; //Laplace smoothing. initialising all as 1.
-				CPT_new[i][j] = 1;
+				CPT[i][j] = 0.01; //Laplace smoothing. initialising all as 1.
+				CPT_new[i][j] = 0.01;
 			}   
         }
 		this->store_data(); //stores all the data in all_data vector, and the missing values as well.
