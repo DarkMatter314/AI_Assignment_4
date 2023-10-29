@@ -145,12 +145,12 @@ public:
     }
 };
 
-Network read_network()
+Network read_network(string file_name)
 {
 	Network Alarm;
 	string line;
 	int find=0;
-  	ifstream myfile("./data/alarm.bif"); 
+  	ifstream myfile(file_name); 
   	string temp;
   	string name;
     vector<string> values;                                                        
@@ -524,11 +524,11 @@ class createCPT{
 	}
 };
 
-int main() //TO FIX: Use 
+int main(int argc, char* argv[])
 {
 	Network Alarm;
-	Alarm=read_network();
-	createCPT CPT(Alarm, "./data/records.dat");
+	Alarm=read_network(string(argv[1]));
+	createCPT CPT(Alarm, string(argv[2]));
 	CPT.CPTinit();
 	cout<<"Initialised CPT\n";
 	CPT.converge_probabilities();
