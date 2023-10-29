@@ -385,7 +385,7 @@ class createCPT{
 		{
 			for(int j=0; j<CPT_new[i].size(); j++)
 			{
-				CPT_new[i][j] = 0;
+				CPT_new[i][j] = 1; //initializing as 1 for laplace smoothing.
 			}
 		}
 		vector<float> sample_weights_for_values; 
@@ -396,12 +396,7 @@ class createCPT{
 			{
 				//then there is a missing data in this data entry.
 				sample_weights_for_values = imputeMissing(datapoint);
-				missing_pos_vals = Alarm.get_nth_node(missing_positions[datapoint])->get_nvalues();
-			}
-			cout << "for datapoint " << datapoint << ", sample_weights_for_values for index " << missing_positions[datapoint] <<":\n";
-			for(int i=0; i<sample_weights_for_values.size(); i++)
-			{
-				cout << i << ":" << sample_weights_for_values[i] << " ";
+				missing_pos_vals = sample_weights_for_values.size(); 
 			}
 			cout << "\n";
 			for(int i=0; i<netsize; i++)
@@ -422,8 +417,9 @@ class createCPT{
 					if(CPTindexVal >= CPT[i].size())
 					{
 						cerr<<"err not in markovblanket greater than size of CPT\n";
+						throw exception();
 					}
-					CPT_new[i][all_data[datapoint][i]] += CPT[i][CPTindexVal]; //Increases the count of the CPT 
+					CPT_new[i][all_data[datapoint][i]] += 1; //Increases the count of the CPT 
 					continue;
 				}
 				//else, the markov blanket of the current node contains the missing value.
@@ -440,10 +436,10 @@ class createCPT{
 						cout << "Missing position: " << missing_positions[datapoint] << "\n";
 						throw exception(); 
 					}
-					CPT_new[i][j] += CPT[i][CPTindexVal]*probGivenMarkovBlanket(cur_data, i);
+					CPT_new[i][j] += sample_weights_for_values[j];
 				}
 			}
-			cout << "datapoint " << datapoint << " done\n";
+			cout << "datapoint " << datapoint << " done";
 		}
 		CPT = CPT_new;
 	}
@@ -478,10 +474,10 @@ class createCPT{
 					total_weight += sample_weights_for_values[i];
 				}
 				//cout << "Missing value imputed for datapoint " << datapoint << " at position " << missing_positions[datapoint] << "\n"; 
-				if(total_weight < 0.9)
-				{
-					cout << total_weight << " is less than 1" << endl;
-				}
+				// if(total_weight < 0.9)
+				// {
+				// 	cout << total_weight << " is less than 1" << endl;
+				// }
 			}
 			for(int i=0; i<netsize; i++)
 			{
@@ -511,7 +507,7 @@ int main() //TO FIX: Use
 	CPT.CPTinit();
 	cout<<"Initialised CPT\n";
 	// CPT.calculate_probabilities();
-	// cout << "one iteration done\n"; 
+	cout << "one iteration done\n"; 
 	// Example: to do something
 	for(auto i: CPT.CPT){
 		for(auto j: i){
