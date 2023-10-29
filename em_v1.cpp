@@ -8,6 +8,9 @@
 #include <unordered_map>
 #include <set>
 #include<exception>
+#include<random>
+#include<chrono>
+#include <cstdlib> 
 
 // Format checker just assumes you have Alarm.bif and Solved_Alarm.bif (your file) in current directory
 using namespace std;
@@ -388,6 +391,7 @@ class createCPT{
 				CPT_new[i][j] = 1; //initializing as 1 for laplace smoothing.
 			}
 		}
+		
 		vector<float> sample_weights_for_values; 
 		for(int datapoint = 0;datapoint < all_data.size(); datapoint++)
 		{
@@ -398,19 +402,25 @@ class createCPT{
 				sample_weights_for_values = imputeMissing(datapoint);
 				missing_pos_vals = sample_weights_for_values.size(); 
 			}
-			cout << "\n";
+			// continue;
 			for(int i=0; i<netsize; i++)
 			{
 				if(i == missing_positions[datapoint])
 				{
 					//then we have to use the sample_weights_for_values.
+					float total = 0;
 					for(int j=0; j<sample_weights_for_values.size(); j++)
 					{
 						CPT_new[i][j] += sample_weights_for_values[j];
+						total += sample_weights_for_values[j];
+					}
+					if(total < 0.9)
+					{
+						cout << "total " << total << " is less than even 0.9" << endl;
 					}
 					continue;
 				}
-				else if(get_markov_blanket_set(i).count(missing_positions[datapoint]) == 0)
+				/*else if(get_markov_blanket_set(i).count(missing_positions[datapoint]) == 0)
 				{
 					//then the missing value is not in the markov blanket of the current node
 					int CPTindexVal = CPTindex(all_data[datapoint], i);
@@ -420,10 +430,12 @@ class createCPT{
 						throw exception();
 					}
 					CPT_new[i][all_data[datapoint][i]] += 1; //Increases the count of the CPT 
+					// cout << "missing not in markov blanket\n";
 					continue;
 				}
 				//else, the markov blanket of the current node contains the missing value.
 				//TO FIX, make this loop faster by not duplicating it each time.
+				// continue;
 				vector<int> cur_data = all_data[datapoint];
 				for(int j = 0; j < missing_pos_vals; j++)
 				{
@@ -437,11 +449,11 @@ class createCPT{
 						throw exception(); 
 					}
 					CPT_new[i][j] += sample_weights_for_values[j];
-				}
+				}*/
 			}
-			cout << "datapoint " << datapoint << " done";
+			// cout << "datapoint " << datapoint << " done";
 		}
-		CPT = CPT_new;
+		// CPT = CPT_new;
 	}
 
     void CPTinit()
@@ -449,7 +461,8 @@ class createCPT{
         CPT.resize(netsize);
 		CPT_new.resize(netsize);
 		total_cnt.resize(netsize);
-        for(int i=0; i<netsize; i++){
+        for(int i=0; i<netsize; i++)
+		{
             Graph_Node* currNode = Alarm.get_nth_node(i);
             CPT[i].resize(currNode->get_CPT().size()); 
 			CPT_new[i].resize(currNode->get_CPT().size());  
@@ -463,36 +476,22 @@ class createCPT{
 		int datapoint = 0;
 		for(datapoint = 0; datapoint < all_data.size(); datapoint++)
 		{
+			vector<float> sample_weights_for_values;
 			if(missing_positions[datapoint] >= 0)
 			{
-				//then there is a missing data in this data entry.
-				vector<float> sample_weights_for_values = imputeMissing(datapoint);
-				float total_weight = 0;
-				for(int i=0; i<sample_weights_for_values.size(); i++)
-				{
-					CPT[missing_positions[datapoint]][i] += sample_weights_for_values[i];
-					total_weight += sample_weights_for_values[i];
-				}
-				//cout << "Missing value imputed for datapoint " << datapoint << " at position " << missing_positions[datapoint] << "\n"; 
-				// if(total_weight < 0.9)
-				// {
-				// 	cout << total_weight << " is less than 1" << endl;
-				// }
+				//then we must set an initial random value in place of the missing value
+				int missing_total_vals = Alarm.get_nth_node(missing_positions[datapoint])->get_nvalues();
+				int random_val = rand() % missing_total_vals;
+				all_data[datapoint][missing_positions[datapoint]] = random_val; //randomly initializing the missing value.
 			}
 			for(int i=0; i<netsize; i++)
 			{
-				if(i == missing_positions[datapoint])
-				{
-					continue;
-				}
-				int CPTindexVal = -1;
-				// if(i != missing_positions[datapoint])
-				CPTindexVal = CPTindex(all_data[datapoint], i);
+				int CPTindexVal = CPTindex(all_data[datapoint], i);
 				if(CPTindexVal >= CPT[i].size())
 				{
 					cerr<<"Error! CPTindexVal greater than size of CPT in CPT init()\n";
+					// cout<<CPTindexVal<<' '<<CPT[i].size()<<'\n';
 				}
-				// cout<<CPTindexVal<<' '<<CPT[i].size()<<'\n';
 				CPT[i][CPTindexVal]++; //Increases the count of the CPT 
 			}
 		}
@@ -506,7 +505,14 @@ int main() //TO FIX: Use
 	createCPT CPT(Alarm, "./data/records.dat");
 	CPT.CPTinit();
 	cout<<"Initialised CPT\n";
-	// CPT.calculate_probabilities();
+	try{
+		CPT.calculate_probabilities();
+	}
+	catch(exception& e)
+	{
+		cout<<"Exception caught\n";
+	}
+	
 	cout << "one iteration done\n"; 
 	// Example: to do something
 	for(auto i: CPT.CPT){
