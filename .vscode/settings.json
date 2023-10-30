@@ -3,6 +3,8 @@
         "MLTable": "yaml",
         "vector": "cpp",
         "xstring": "cpp",
-        "xutility": "cpp"
+        "xutility": "cpp",
+        "xtree": "cpp",
+        "string": "cpp"
     }
 }
