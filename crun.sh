@@ -1,3 +1,3 @@
 #!/bin/bash
-g++ -o cur em_v1.cpp
-./cur
+bash compile.sh
+time bash run.sh ./data/gold.bif ./data/records
