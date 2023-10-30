@@ -321,11 +321,18 @@ class createCPT{
 	{
 		int cptindex = CPTindex(data, index);
 		Graph_Node* currNode = Alarm.get_nth_node(index);
-		int probSamples = CPT[index][cptindex];
-		int totalSamples = 0;
+		float probSamples = CPT[index][cptindex];
+		float totalSamples = 0;
 		cptindex -= ((CPT[index].size() * data[index]) / (currNode->get_nvalues()));
 		for(int i=0; i<currNode->get_nvalues(); i++){
-			totalSamples += CPT[index][cptindex + ((CPT[index].size() * i) / (currNode->get_nvalues()))];
+			int CPTiter = cptindex + ((CPT[index].size() * i) / (currNode->get_nvalues()));
+			totalSamples += CPT[index][CPTiter];
+		}
+		if(totalSamples == 0){
+			cout<<"Error! Total samples is 0\n";
+			cout<<"Index "<<index<<" CPTindex "<<cptindex<<" data[index] "<<data[index]<<'\n';
+			cout<<'\n';
+			throw exception();
 		}
 		float probability = ((float)probSamples)/((float)totalSamples);
 		return probability;
@@ -614,6 +621,6 @@ int main(int argc, char* argv[])
 	cout<<"Initialised CPT\n";
 	CPT.converge_probabilities(); //Converges the probabilities. Currently uses fixed number of 100 iterations.
 	CPT.convertCountsToCPT();
-	double total_error = write_output_file(CPT.CPT, "solved_counts.bif", string(argv[1]));
+	double total_error = write_output_file(CPT.CPT, "solved_alarm.bif", string(argv[1]));
 	cout << "Total Error: " << total_error << endl;
 }
